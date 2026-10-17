@@ -1,0 +1,137 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default deny all access
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper: checks if the parent field is owned by the authenticated caller
+    function isFieldOwner(fieldId) {
+      return request.auth != null && 
+        get(/databases/$(database)/documents/fields/$(fieldId)).data.userId == request.auth.uid;
+    }
+
+    // Validation: Field documents
+    function validateField(data) {
+      return data.userId is string &&
+             data.userId == request.auth.uid &&
+             data.name is string &&
+             data.name.size() > 0 && data.name.size() <= 100 &&
+             data.crop is string &&
+             data.crop.size() > 0 && data.crop.size() <= 50 &&
+             data.area_acres is number &&
+             data.area_acres > 0 && data.area_acres <= 100000 &&
+             (!('village' in data) || (data.village is string && data.village.size() <= 100)) &&
+             (!('sowing_date' in data) || (data.sowing_date is string && data.sowing_date.size() <= 30));
+    }
+
+    // Validation: Assessment records
+    function validateAssessment(data) {
+      return (!('field_id' in data) || data.field_id is string) &&
+             (!('userId' in data) || data.userId == request.auth.uid) &&
+             (!('water_stress_score' in data) || data.water_stress_score == null || (data.water_stress_score is number && data.water_stress_score >= 0 && data.water_stress_score <= 100)) &&
+             (!('risk_level' in data) || (data.risk_level is string && data.risk_level in ['low', 'medium', 'high', 'unknown'])) &&
+             (!('recommended_irrigation_mm' in data) || data.recommended_irrigation_mm == null || (data.recommended_irrigation_mm is number && data.recommended_irrigation_mm >= 0 && data.recommended_irrigation_mm <= 500));
+    }
+
+    // Validation: AI Advisory documents
+    function validateAdvisory(data) {
+      return data.userId is string &&
+             data.userId == request.auth.uid &&
+             data.fieldId is string &&
+             data.language is string && data.language in ['en', 'hi', 'gu'] &&
+             data.headline is string && data.headline.size() <= 250 &&
+             data.action_now is list && data.action_now.size() <= 10 &&
+             data.why is list && data.why.size() <= 10 &&
+             (!('risk_warning' in data) || (data.risk_warning is string && data.risk_warning.size() <= 300)) &&
+             (!('next_review' in data) || (data.next_review is string && data.next_review.size() <= 200));
+    }
+
+    // Validation: Irrigation logs
+    function validateIrrigationLog(data) {
+      return data.userId is string &&
+             data.userId == request.auth.uid &&
+             data.fieldId is string &&
+             (!('userBaselineMm' in data) || (data.userBaselineMm is number && data.userBaselineMm >= 0 && data.userBaselineMm <= 500)) &&
+             (!('recommendedMm' in data) || (data.recommendedMm is number && data.recommendedMm >= 0 && data.recommendedMm <= 500)) &&
+             (!('estimatedComparisonLitres' in data) || (data.estimatedComparisonLitres is number && data.estimatedComparisonLitres >= 0)) &&
+             (!('cumulativeSeasonSavedLitres' in data) || (data.cumulativeSeasonSavedLitres is number && data.cumulativeSeasonSavedLitres >= 0));
+    }
+
+    // Validation: User profile records
+    function validateUserProfile(data) {
+      return data.userId is string &&
+             data.userId == request.auth.uid &&
+             (!('preferredLanguage' in data) || (data.preferredLanguage is string && data.preferredLanguage in ['en', 'hi', 'gu'])) &&
+             (!('name' in data) || (data.name is string && data.name.size() <= 100));
+    }
+
+    // 1. User Profiles Collection
+    match /users/{userId} {
+      allow get: if request.auth != null && request.auth.uid == userId;
+      allow create: if request.auth != null && request.auth.uid == userId && validateUserProfile(request.resource.data);
+      allow update: if request.auth != null && request.auth.uid == userId && 
+                       request.resource.data.userId == resource.data.userId && 
+                       validateUserProfile(request.resource.data);
+      allow delete: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // 2. Fields Collection (Top-level records isolated by userId)
+    match /fields/{fieldId} {
+      allow get, list: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow create: if request.auth != null && 
+                       request.resource.data.userId == request.auth.uid && 
+                       validateField(request.resource.data);
+      allow update: if request.auth != null && 
+                       resource.data.userId == request.auth.uid && 
+                       request.resource.data.userId == resource.data.userId && 
+                       validateField(request.resource.data);
+      allow delete: if request.auth != null && resource.data.userId == request.auth.uid;
+
+      // 2a. Field Assessments Subcollection
+      match /assessments/{assessmentId} {
+        allow get, list: if isFieldOwner(fieldId);
+        allow create: if isFieldOwner(fieldId) && validateAssessment(request.resource.data);
+        allow update: if isFieldOwner(fieldId) && 
+                         (!('userId' in resource.data) || request.resource.data.userId == resource.data.userId) &&
+                         validateAssessment(request.resource.data);
+        allow delete: if isFieldOwner(fieldId);
+
+        // 2b. AI Advisories Subcollection (Localized explanations)
+        match /advisories/{language} {
+          allow get, list: if isFieldOwner(fieldId);
+          allow create: if isFieldOwner(fieldId) && validateAdvisory(request.resource.data);
+          allow update: if isFieldOwner(fieldId) && 
+                           (!('userId' in resource.data) || request.resource.data.userId == resource.data.userId) && 
+                           validateAdvisory(request.resource.data);
+          allow delete: if isFieldOwner(fieldId);
+        }
+      }
+
+      // 2c. Field Irrigation Logs Subcollection
+      match /irrigation_logs/{logId} {
+        allow get, list: if isFieldOwner(fieldId);
+        allow create: if isFieldOwner(fieldId) && validateIrrigationLog(request.resource.data);
+        allow update: if isFieldOwner(fieldId) && 
+                         (!('userId' in resource.data) || request.resource.data.userId == resource.data.userId) && 
+                         validateIrrigationLog(request.resource.data);
+        allow delete: if isFieldOwner(fieldId);
+      }
+    }
+
+    // 3. Standalone Advisories Cache Collection
+    match /advisories/{advisoryId} {
+      allow get, list: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow create: if request.auth != null && 
+                       request.resource.data.userId == request.auth.uid && 
+                       validateAdvisory(request.resource.data);
+      allow update: if request.auth != null && 
+                       resource.data.userId == request.auth.uid && 
+                       request.resource.data.userId == resource.data.userId && 
+                       validateAdvisory(request.resource.data);
+      allow delete: if request.auth != null && resource.data.userId == request.auth.uid;
+    }
+  }
+}

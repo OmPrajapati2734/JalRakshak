@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>JalRakshak AI — Kisan Irrigation Advisor</title>
+    <!-- Google Fonts & Material Symbols -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+    <!-- Tailwind CSS with Stitch Theme Palette -->
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              primary: '#1b5e20',
+              'primary-dark': '#00450d',
+              'primary-container': '#e8f5e9',
+              secondary: '#c67d00',
+              'secondary-container': '#fff8e1',
+              tertiary: '#b71c1c',
+              'tertiary-container': '#ffebee',
+              canvas: '#f7f8f4',
+              surface: '#ffffff',
+              borderline: '#dce0d4'
+            },
+            fontFamily: {
+              sans: ['Noto Sans', 'sans-serif']
+            }
+          }
+        }
+      };
+    </script>
+  </head>
+  <body class="bg-[#f7f8f4] text-[#1c1e1a] font-sans antialiased selection:bg-green-100">
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
