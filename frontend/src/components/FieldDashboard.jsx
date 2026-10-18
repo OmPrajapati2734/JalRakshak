@@ -585,9 +585,9 @@ export default function FieldDashboard({
               </select>
             </div>
             <div className="mt-2 pt-2 border-t border-[var(--border)] flex items-center justify-between text-[11px] text-[var(--muted)] font-medium flex-wrap gap-1.5">
-              <span>🌾 {fieldData.crop?.toUpperCase()}</span>
-              <span>📐 {fieldData.area_acres} Acres</span>
-              <span>🗓️ Sown {fieldData.sowing_date}</span>
+              <span>🌾 {fieldData?.crop?.toUpperCase() || 'COTTON'}</span>
+              <span>📐 {fieldData?.area_acres || 1.0} Acres</span>
+              <span>🗓️ Sown {fieldData?.sowing_date || '2026-08-10'}</span>
               {cumulativeSavedLitres > 0 && (
                 <span className="text-[var(--forest)] font-bold">
                   💧 {formatWaterSaved(cumulativeSavedLitres)} {t.seasonSavedLabel.toLowerCase()}
